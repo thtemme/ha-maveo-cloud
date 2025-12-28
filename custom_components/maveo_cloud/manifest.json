@@ -1,0 +1,14 @@
+{
+  "domain": "maveo_cloud",
+  "name": "Maveo Cloud",
+  "codeowners": ["@thtemme"],
+  "config_flow": true,
+  "documentation": "https://github.com/thtemme/ha-maveo-cloud",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/thtemme/ha-maveo-cloud/issues",
+  "requirements": [
+    "paho-mqtt>=1.6.1",
+    "requests>=2.25.1"
+  ],
+  "version": "1.0.0"
+}
