@@ -14,8 +14,13 @@ class MaveoGarage(CoverEntity):
         self._attr_unique_id = f"{device_id}_garage"
         self._attr_name = "Maveo Garagentor"
         self._attr_device_class = CoverDeviceClass.GARAGE
-        self._state = None
-        # Wir unterstützen Open, Close und Stop
+        
+        # --- DIESE ZEILEN FEHLTEN ---
+        self._attr_is_closed = None  # Startzustand unbekannt
+        self._attr_is_opening = False
+        self._attr_is_closing = False
+        # ----------------------------
+
         self._attr_supported_features = (
             CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE | CoverEntityFeature.STOP
         )
@@ -45,4 +50,5 @@ class MaveoGarage(CoverEntity):
 
     def stop_cover(self, **kwargs):
         # Hier ist dein gewünschter Stop-Code 0
+
         self._bridge.send_command({"AtoS_g": 0})
