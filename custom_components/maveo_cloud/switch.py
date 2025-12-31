@@ -21,9 +21,9 @@ class MaveoLight(SwitchEntity):
 
     @callback
     def update_status(self, payload):
-        # Wir bräuchten vom Reverse Engineering noch den Status-Code für Licht (StoA_l ?)
-        # Solange wir den nicht haben, arbeiten wir "optimistisch" (Button State ändert sich bei Klick)
-        pass 
+        # Hier könnte man den echten Status auswerten, falls bekannt.
+        # Solange nutzen wir optimistic mode durch die Button Klicks.
+        pass
 
     @property
     def is_on(self):
@@ -32,9 +32,11 @@ class MaveoLight(SwitchEntity):
     def turn_on(self, **kwargs):
         self._bridge.send_command({"AtoS_l": 1})
         self._is_on = True
-        self.async_write_ha_state()
+        # WICHTIG: schedule_update_ha_state ist thread-safe!
+        self.schedule_update_ha_state()
 
     def turn_off(self, **kwargs):
         self._bridge.send_command({"AtoS_l": 0})
         self._is_on = False
-        self.async_write_ha_state()
+        # WICHTIG: schedule_update_ha_state ist thread-safe!
+        self.schedule_update_ha_state()
