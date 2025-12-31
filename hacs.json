@@ -1,0 +1,7 @@
+{
+  "name": "Maveo Cloud",
+  "render_readme": true,
+  "content_in_root": false,
+  "zip_release": true,
+  "filename": "maveo_cloud.zip"
+}
