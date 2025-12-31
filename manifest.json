@@ -10,5 +10,6 @@
     "paho-mqtt>=1.6.1",
     "requests>=2.25.1"
   ],
-  "version": "1.0.0"
+  "version": "0.1.0"
+
 }
