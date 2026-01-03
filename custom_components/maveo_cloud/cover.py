@@ -21,7 +21,7 @@ class MaveoGarage(CoverEntity):
         self._attr_is_closing = False
 
         self._attr_supported_features = (
-            CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE | CoverEntityFeature.STOP
+            CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE | CoverEntityFeature.STOP | CoverEntityFeature.OPEN_TILT #für untere zwsichenposition
         )
 
     async def async_added_to_hass(self):
@@ -61,7 +61,7 @@ class MaveoGarage(CoverEntity):
                 # Fährt zu -> Stop aktiv
                 self._attr_is_closing = True
                 self._attr_is_closed = False
-
+            
             # Wenn status z.B. 0 ist (Stopped), bleibt is_closed auf None.
             # Ergebnis: HA zeigt "Unbekannt" oder Zwischenstatus und aktiviert BEIDE Buttons.
 
@@ -76,3 +76,7 @@ class MaveoGarage(CoverEntity):
 
     def stop_cover(self, **kwargs):
         self._bridge.send_command({"AtoS_g": 0})
+        
+    # Fahre in untere Zwischenposition
+    def open_cover_tilt(self, **kwargs):
+        self._bridge.send_command({"AtoS_g": 3})
