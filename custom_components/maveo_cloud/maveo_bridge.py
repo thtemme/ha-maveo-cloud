@@ -22,6 +22,10 @@ class MaveoBridge:
         self._stop_event = threading.Event()
         self._thread = None
         self._callbacks = [] 
+        self._lock = threading.Lock()
+        # Letzter bekannter Zustand aus der Cloud, damit spät registrierte Entities
+        # nicht auf die nächste Statusänderung warten müssen
+        self._last_payload = {}
         self.aws_client = None
 
     def start(self):
@@ -40,7 +44,27 @@ class MaveoBridge:
             self._thread.join()
 
     def register_callback(self, callback):
-        self._callbacks.append(callback)
+        """Registriert einen Callback und liefert sofort den zuletzt bekannten Zustand.
+
+        Gibt eine Funktion zurück, die den Callback wieder entfernt.
+        """
+        with self._lock:
+            self._callbacks.append(callback)
+            last_payload = dict(self._last_payload)
+        if last_payload:
+            callback(last_payload)
+
+        def unregister():
+            with self._lock:
+                if callback in self._callbacks:
+                    self._callbacks.remove(callback)
+
+        return unregister
+
+    def request_status(self):
+        """Fragt den aktuellen Status beim Stick an (Antwort kommt über /rsp)."""
+        if self.aws_client and self.aws_client.is_connected():
+            self.send_command({"AtoS_s": 0})
 
     def send_command(self, command_dict):
         if self.aws_client and self.aws_client.is_connected():
@@ -97,7 +121,12 @@ class MaveoBridge:
     def _on_message(self, client, userdata, msg):
         try:
             payload = json.loads(msg.payload.decode())
-            for callback in self._callbacks:
+            if not isinstance(payload, dict):
+                return
+            with self._lock:
+                self._last_payload.update(payload)
+                callbacks = list(self._callbacks)
+            for callback in callbacks:
                 callback(payload)
         except Exception as e:
             _LOGGER.error(f"Parsing Fehler: {e}")
