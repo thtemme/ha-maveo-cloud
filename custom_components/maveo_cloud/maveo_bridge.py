@@ -14,11 +14,21 @@ from .const import CONF_CLIENT_ID, CONF_POOL_ID, CONF_IOT_HOST, CONF_REGION
 
 _LOGGER = logging.getLogger(__name__)
 
+# Pause nach einer Trennung. Die Maveo App nutzt dieselbe Client-ID, ein schnelles
+# Neuverbinden würde sie hinauswerfen und ein ständiges Hin und Her auslösen.
+RECONNECT_COOLDOWN = 600
+# Befehle, die während einer Trennung kommen, werden nach dem sofortigen Neuverbinden
+# nur gesendet, wenn sie nicht älter sind (ein Tor soll nicht verspätet losfahren)
+PENDING_COMMAND_MAX_AGE = 30
+
 class MaveoBridge:
     def __init__(self, user, password, device_id):
         self._user = user
         self._pass = password
         self._device_id = device_id
+        # Weckt die Bridge aus der Pause, wenn ein Befehl gesendet werden soll
+        self._wake_event = threading.Event()
+        self._pending_command = None
         self._stop_event = threading.Event()
         self._thread = None
         self._callbacks = [] 
@@ -35,6 +45,7 @@ class MaveoBridge:
 
     def stop(self):
         self._stop_event.set()
+        self._wake_event.set()
         if self.aws_client:
             try:
                 self.aws_client.disconnect()
@@ -75,7 +86,11 @@ class MaveoBridge:
             except Exception as e:
                 _LOGGER.error(f"Fehler beim Senden: {e}")
         else:
-            _LOGGER.warning("Kann nicht senden: Nicht verbunden.")
+            # Nicht verbunden (z.B. weil die Maveo App die Verbindung übernommen hat):
+            # Befehl merken und sofort neu verbinden statt die Pause abzuwarten
+            _LOGGER.info("Nicht verbunden, verbinde neu für Befehl %s", command_dict)
+            self._pending_command = (time.monotonic(), command_dict)
+            self._wake_event.set()
 
     def _aws_loop(self):
         while not self._stop_event.is_set():
@@ -103,8 +118,9 @@ class MaveoBridge:
                 except: pass
 
                 if not self._stop_event.is_set():
-                    _LOGGER.info("Warte 10 Minuten (Cooldown)...")
-                    self._stop_event.wait(timeout=600)
+                    _LOGGER.info("Warte 10 Minuten (Cooldown), außer ein Befehl kommt...")
+                    self._wake_event.wait(timeout=RECONNECT_COOLDOWN)
+                    self._wake_event.clear()
 
             except Exception as e:
                 _LOGGER.error(f"Bridge Fehler: {e}")
@@ -113,10 +129,24 @@ class MaveoBridge:
     def _on_connect(self, client, userdata, flags, rc, props=None):
         if rc == 0:
             _LOGGER.info("Verbunden mit Maveo AWS!")
+            # Ein Weckruf aus der Verbindungsphase ist mit dem Verbinden erledigt
+            self._wake_event.clear()
             client.subscribe(f"{self._device_id}/rsp")
             client.publish(f"{self._device_id}/cmd", json.dumps({"AtoS_s": 0}))
+            self._send_pending_command(client)
         else:
             _LOGGER.error(f"Verbindung abgelehnt RC={rc}")
+
+    def _send_pending_command(self, client):
+        pending, self._pending_command = self._pending_command, None
+        if pending is None:
+            return
+        queued_at, command_dict = pending
+        if time.monotonic() - queued_at > PENDING_COMMAND_MAX_AGE:
+            _LOGGER.warning("Befehl %s verworfen, zu alt", command_dict)
+            return
+        _LOGGER.debug("Sende an AWS: %s", command_dict)
+        client.publish(f"{self._device_id}/cmd", json.dumps(command_dict))
 
     def _on_message(self, client, userdata, msg):
         try:
