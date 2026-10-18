@@ -6,6 +6,7 @@ from homeassistant.const import STATE_CLOSED, STATE_OPEN
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.restore_state import RestoreEntity
 from .const import DOMAIN, CONF_DEVICE_ID
+from .const import STATUS_MAP
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ class MaveoGarage(CoverEntity, RestoreEntity):
         self._attr_unique_id = f"{device_id}_garage"
         self._attr_name = "Maveo Garagentor"
         self._attr_device_class = CoverDeviceClass.GARAGE
+        self._attr_translation_key = "garage_door"
         
         # Startzustand: None = Unbekannt -> Beide Buttons aktiv
         self._attr_is_closed = None
@@ -58,6 +60,8 @@ class MaveoGarage(CoverEntity, RestoreEntity):
         if "StoA_s" in payload:
             status = payload["StoA_s"]
             _LOGGER.debug("Status von Maveo: %s", payload)
+            # Detaillierter Status (z.B. Lüftung) für Dashboards, siehe auch Sensor
+            self._attr_extra_state_attributes = {"door_status": STATUS_MAP.get(status)}
             
             # Reset erst mal alles
             self._attr_is_opening = False

@@ -12,3 +12,13 @@ CONF_REGION = "eu-central-1"
 CONF_MAVEO_USER = "maveo_user"
 CONF_MAVEO_PASS = "maveo_pass"
 CONF_DEVICE_ID = "device_id"
+
+# StoA_s -> Zustand des Tors (Sensor und Cover-Attribut door_status)
+STATUS_MAP = {
+    0: "stopped",
+    1: "opening",
+    2: "closing",
+    3: "open",
+    4: "closed",
+    6: "ventilation",
+}

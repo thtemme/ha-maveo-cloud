@@ -5,7 +5,7 @@ from .const import DOMAIN, CONF_MAVEO_USER, CONF_MAVEO_PASS, CONF_DEVICE_ID
 from .maveo_bridge import MaveoBridge
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = ["cover", "switch"]
+PLATFORMS = ["cover", "sensor", "switch"]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Set up Maveo from a config entry."""
