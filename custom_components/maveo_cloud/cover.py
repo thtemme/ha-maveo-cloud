@@ -1,9 +1,13 @@
+import logging
+
 from homeassistant.components.cover import CoverEntity, CoverDeviceClass, CoverEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_CLOSED, STATE_OPEN
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.restore_state import RestoreEntity
 from .const import DOMAIN, CONF_DEVICE_ID
+
+_LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
     bridge = hass.data[DOMAIN][entry.entry_id]
@@ -21,6 +25,8 @@ class MaveoGarage(CoverEntity, RestoreEntity):
         self._attr_is_closed = None
         self._attr_is_opening = False
         self._attr_is_closing = False
+        # Tilt bildet die Lüftungsposition ab: 100 = Lüftung, 0 = keine Lüftung
+        self._attr_current_cover_tilt_position = None
 
         self._attr_supported_features = (
             CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE | CoverEntityFeature.STOP | CoverEntityFeature.OPEN_TILT #für untere zwsichenposition
@@ -51,17 +57,22 @@ class MaveoGarage(CoverEntity, RestoreEntity):
         """Callback von der Bridge."""
         if "StoA_s" in payload:
             status = payload["StoA_s"]
+            _LOGGER.debug("Status von Maveo: %s", payload)
             
             # Reset erst mal alles
             self._attr_is_opening = False
             self._attr_is_closing = False
-            self._attr_is_closed = None # Standard: Unbekannt/Zwischenposition
+            # Standard: Tor steht zwischen den Endlagen (gestoppt, Zwischenposition).
+            # Für Home Assistant ist ein nicht ganz geschlossenes Tor "offen".
+            self._attr_is_closed = False
 
             # Status Mapping
             # 1: opening -> Wird geöffnet
             # 2: closing -> Wird geschlossen
             # 3: open    -> Ganz offen
             # 4: closed  -> Ganz zu
+            # 0: gestoppt zwischen den Endlagen -> offen
+            # 6: Lüftungsposition (untere Zwischenposition) -> offen
             
             if status == 3: 
                 # Ganz offen -> Open Button grau, Close Button aktiv
@@ -81,8 +92,13 @@ class MaveoGarage(CoverEntity, RestoreEntity):
                 self._attr_is_closing = True
                 self._attr_is_closed = False
             
-            # Wenn status z.B. 0 ist (Stopped), bleibt is_closed auf None.
-            # Ergebnis: HA zeigt "Unbekannt" oder Zwischenstatus und aktiviert BEIDE Buttons.
+            # Alle anderen Werte (0, 6 und unbekannte) bleiben auf "offen".
+
+            self._attr_current_cover_tilt_position = 100 if status == 6 else 0
+
+            # Zwischen den Endlagen ist die genaue Position nicht bekannt. assumed_state
+            # sorgt dafür, dass das Frontend Öffnen und Schließen aktiv lässt.
+            self._attr_assumed_state = status not in (1, 2, 3, 4)
 
             # WICHTIG: schedule_update_ha_state nutzen statt async_write_ha_state
             self.schedule_update_ha_state()
